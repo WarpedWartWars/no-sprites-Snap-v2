@@ -1797,29 +1797,16 @@ Array.prototype.toXML = function (serializer) {
 // Scenes & multi-scene projects
 
 Project.prototype.toXML = function (serializer) {
-    var thumbdata;
-
-    // thumb data catch cross-origin tainting exception when using SVG costumes
-    try {
-        thumbdata = this.thumbnail.toDataURL('image/png');
-    } catch (error) {
-        thumbdata = null;
-    }
-
     return serializer.format(
         '<project name="@" app="@" version="@">' +
             '<notes>$</notes>' +
-            '<thumbnail>$</thumbnail>' +
-            '<scenes select="@">%</scenes>' +
+            '%' +
             '</project>',
         this.name || localize('Untitled'),
         serializer.app,
         serializer.version,
         this.notes || '',
-        thumbdata,
-        this.scenes.asArray().indexOf(
-            this.currentScene) + 1,
-        serializer.store(this.scenes.itemsArray())
+        serializer.store(this.currentScene)
     );
 };
 
@@ -1845,7 +1832,7 @@ Scene.prototype.toXML = function (serializer) {
     serializer.scene = this; // keep the order of sprites in the corral
 
     xml = serializer.format(
-        '<scene name="@"%%%%%%>' +
+        '<scene %%%%%>' +
             '<notes>$</notes>' +
             '%' +
             '<hidden>$</hidden>' +
@@ -1855,7 +1842,6 @@ Scene.prototype.toXML = function (serializer) {
             '%' + // stage
             '<variables>%</variables>' +
             '</scene>',
-        this.name || localize('Untitled'),
         this.unifiedPalette ? ' palette="single"' : '',
         this.unifiedPalette && !this.showCategories ?
             ' categories="false"' : '',
@@ -1863,7 +1849,6 @@ Scene.prototype.toXML = function (serializer) {
             ' buttons="false"' : '',
         this.disableClickToRun ? ' clickrun="false"' : '',
         this.disableDraggingData ? ' dragdata="false"' : '',
-        this.penColorModel === 'hsl' ? ' colormodel="hsl"' : '',
         this.notes || '',
         serializer.paletteToXML(this.customCategories),
         Object.keys(this.hiddenPrimitives).reduce(
@@ -1882,106 +1867,38 @@ Scene.prototype.toXML = function (serializer) {
 // Sprites
 
 StageMorph.prototype.toXML = function (serializer) {
-    var costumeIdx = this.getCostumeIdx();
-
-    this.removeAllClones();
     return serializer.format(
-            '<stage name="@" width="@" height="@" ' +
-            'costume="@" color="@,@,@,@" tempo="@" threadsafe="@" ' +
-            'penlog="@" ' +
-            '%' +
-            'volume="@" ' +
-            'pan="@" ' +
-            'lines="@" ' +
+            '<stage ' +
+            'threadsafe="@" ' +
             'ternary="@" ' +
             'hyperops="@" ' +
             'codify="@" ' +
-            'inheritance="@" ' +
             'sublistIDs="@" ~>' +
-            '<pentrails>$</pentrails>' +
-            '%' + // current costume, if it's not in the wardrobe
-            '<costumes>%</costumes>' +
-            '<sounds>%</sounds>' +
             '<variables>%</variables>' +
             '<blocks>%</blocks>' +
             '<scripts>%</scripts>' +
-            '<sprites select="@">%</sprites>' +
             '</stage>',
-        this.name,
-        this.dimensions.x,
-        this.dimensions.y,
-        costumeIdx,
-        this.color.r,
-        this.color.g,
-        this.color.b,
-        this.color.a,
-        this.getTempo(),
         this.isThreadSafe,
-        this.enablePenLogging,
-        this.instrument ?
-                ' instrument="' + parseInt(this.instrument) + '" ' : '',
-        this.volume,
-        this.pan,
-        SpriteMorph.prototype.useFlatLineEnds ? 'flat' : 'round',
         BooleanSlotMorph.prototype.isTernary,
         Process.prototype.enableHyperOps === true,
         this.enableCodeMapping,
-        this.enableInheritance,
         this.enableSublistIDs,
-        normalizeCanvas(this.trailsCanvas, true).toDataURL('image/png'),
 
-        // current costume, if it's not in the wardrobe
-        !costumeIdx && this.costume ?
-            '<wear>' + serializer.store(this.costume) + '</wear>'
-                : '',
-
-        serializer.store(this.costumes, this.name + '_cst'),
-        serializer.store(this.sounds, this.name + '_snd'),
         serializer.store(this.variables),
         serializer.store(this.customBlocks),
         serializer.store(this.scripts),
-        serializer.root.sprites.asArray().indexOf(
-            serializer.root.currentSprite) + 1,
-        serializer.store(this.children)
     );
 };
 
 StageMorph.prototype.toSpriteXML = function (serializer) {
     // special case: export the stage as a sprite, so it can be
     // imported into another project or scene
-    var costumeIdx = this.getCostumeIdx();
-
     return serializer.format(
-        '<sprite name="@" idx="1" x="0" y="0"' +
-            ' heading="90"' +
-            ' scale="1"' +
-            ' volume="@"' +
-            ' pan="@"' +
-            ' rotation="0"' +
-            '%' +
-            ' draggable="true"' +
-            ' costume="@" color="80,80,80,1" pen="tip" ~>' +
-            '%' + // current costume
-            '<costumes>%</costumes>' +
-            '<sounds>%</sounds>' +
+        '<sprite ' +
             '<blocks>%</blocks>' +
             '<variables>%</variables>' +
             '<scripts>%</scripts>' +
             '</sprite>',
-        this.name,
-        this.volume,
-        this.pan,
-        this.instrument ?
-                ' instrument="' + parseInt(this.instrument) + '" ' : '',
-        costumeIdx,
-
-        // current costume, if it's not in the wardrobe
-        !costumeIdx && this.costume ?
-            '<wear>' + serializer.store(this.costume) + '</wear>'
-                : '',
-
-        serializer.store(this.costumes, this.name + '_cst'),
-        serializer.store(this.sounds, this.name + '_snd'),
         !this.customBlocks ? '' : serializer.store(this.customBlocks),
         serializer.store(this.variables),
         serializer.store(this.scripts)
@@ -1989,94 +1906,22 @@ StageMorph.prototype.toSpriteXML = function (serializer) {
 };
 
 SpriteMorph.prototype.toXML = function (serializer) {
-    var idx = serializer.scene.sprites.asArray().indexOf(this) + 1,
-        costumeIdx = this.getCostumeIdx(),
-        noCostumes = this.inheritsAttribute('costumes'),
-        noSounds = this.inheritsAttribute('sounds'),
-        noScripts = this.inheritsAttribute('scripts');
+    var noScripts = this.inheritsAttribute('scripts');
 
     return serializer.format(
-        '<sprite name="@" idx="@" x="@" y="@"' +
-            ' heading="@"' +
-            ' scale="@"' +
-            ' volume="@"' +
-            ' pan="@"' +
-            ' rotation="@"' +
-            '%' +
-            ' draggable="@"' +
-            '%' +
-            ' costume="@" color="@,@,@,@" pen="@" ~>' +
+        '<sprite ' +
             '%' + // solution info
-            '%' + // inheritance info
-            '%' + // nesting info
-            '%' + // current costume
-            (noCostumes ? '%' : '<costumes>%</costumes>') +
-            (noSounds ? '%' : '<sounds>%</sounds>') +
             '<blocks>%</blocks>' +
             '<variables>%</variables>' +
-            (this.exemplar ? '<dispatches>%</dispatches>' : '%') +
             (noScripts ? '%' : '<scripts>%</scripts>') +
             '</sprite>',
-        this.name,
-        idx,
-        this.xPosition(),
-        this.yPosition(),
-        this.heading,
-        this.scale,
-        this.volume,
-        this.pan,
-        this.rotationStyle,
-        this.instrument ?
-                ' instrument="' + parseInt(this.instrument) + '" ' : '',
-        this.isDraggable,
-        this.isVisible ? '' : ' hidden="true"',
-        costumeIdx,
-        this.color.r,
-        this.color.g,
-        this.color.b,
-        this.color.a,
-        this.penPoint,
-
         // solution info
         this.solution
             ? '<solution>' + serializer.store(this.solution) + '</solution>'
             : '',
 
-        // inheritance info
-        this.exemplar
-            ? '<inherit exemplar="' +
-                    this.exemplar.name +
-                    '">' +
-                    (this.inheritedAttributes.length ?
-                        serializer.store(new List(this.inheritedAttributes))
-                        : '') +
-                    '</inherit>'
-            : '',
-
-        // nesting info
-        this.anchor
-            ? '<nest anchor="' +
-                    this.anchor.name +
-                    '" synch="'
-                    + this.rotatesWithAnchor
-                    + (this.scale === this.nestingScale ? '' :
-                            '"'
-                            + ' scale="'
-                            + this.nestingScale)
-
-                    + '"/>'
-            : '',
-
-        // current costume, if it's not in the wardrobe
-        !costumeIdx && this.costume ?
-            '<wear>' + serializer.store(this.costume) + '</wear>'
-                : '',
-
-        noCostumes ? '' : serializer.store(this.costumes, this.name + '_cst'),
-        noSounds ? '' : serializer.store(this.sounds, this.name + '_snd'),
         !this.customBlocks ? '' : serializer.store(this.customBlocks),
         serializer.store(this.variables),
-        this.exemplar ? serializer.store(this.inheritedMethods()) : '',
         noScripts ? '' : serializer.store(this.scripts)
     );
 };
@@ -2085,10 +1930,7 @@ Costume.prototype[XML_Serializer.prototype.mediaDetectionProperty] = true;
 
 Costume.prototype.toXML = function (serializer) {
     return serializer.format(
-        '<costume name="@" center-x="@" center-y="@" image="@"% ~/>',
-        this.name,
-        this.rotationCenter.x,
-        this.rotationCenter.y,
+        '<costume image="@"% ~/>',
         this instanceof SVG_Costume ? this.contents.src
                 : normalizeCanvas(this.contents).toDataURL('image/png'),
         this.embeddedData ? serializer.format(' embed="@"', this.embeddedData)
@@ -2100,8 +1942,7 @@ Sound.prototype[XML_Serializer.prototype.mediaDetectionProperty] = true;
 
 Sound.prototype.toXML = function (serializer) {
     return serializer.format(
-        '<sound name="@" sound="@" ~/>',
-        this.name,
+        '<sound sound="@" ~/>',
         this.toDataURL()
     );
 };
@@ -2140,50 +1981,6 @@ VariableFrame.prototype.toXML = function (serializer) {
         }
         return vars + dta;
     }, '');
-};
-
-// Watchers
-
-WatcherMorph.prototype.toXML = function (serializer) {
-    var isVar = this.target instanceof VariableFrame,
-        isList = this.currentValue instanceof List,
-        color = this.readoutColor,
-        position = this.parent ?
-                this.topLeft().subtract(
-                    this.parent.topLeft()
-                ).divideBy(this.parent.scale)
-            : this.topLeft();
-
-    if (this.isTemporary()) {
-        // do not save watchers on temporary variables
-        return '';
-    }
-    return serializer.format(
-        '<watcher% % style="@"% x="@" y="@" color="@,@,@"%%/>',
-        (isVar && this.target.owner) || (!isVar && this.target) ?
-                    serializer.format(' scope="@"',
-                        isVar ? this.target.owner.name : this.target.name)
-                            : '',
-        serializer.format(isVar ? 'var="@"' : 's="@"', this.getter),
-        this.style,
-        isVar && this.style === 'slider' ? serializer.format(
-                ' min="@" max="@"',
-                this.sliderMorph.start,
-                this.sliderMorph.stop
-            ) : '',
-        position.x,
-        position.y,
-        color.r,
-        color.g,
-        color.b,
-        !isList ? ''
-                : serializer.format(
-                ' extX="@" extY="@"',
-                this.cellMorph.contentsMorph.width(),
-                this.cellMorph.contentsMorph.height()
-            ),
-        this.isVisible ? '' : ' hidden="true"'
-    );
 };
 
 // Scripts

@@ -586,11 +586,6 @@ SyntaxElementMorph.prototype.labelParts = {
         tags: 'read-only static',
         menu: 'gettablesMenu'
     },
-    '%cst': {
-        type: 'input',
-        tags: 'read-only',
-        menu: 'costumesMenu'
-    },
     '%eff': {
         type: 'input',
         tags: 'read-only static',
@@ -619,11 +614,6 @@ SyntaxElementMorph.prototype.labelParts = {
             '~' : null,
             inputs : ['inputs']
         }
-    },
-    '%snd': {
-        type: 'input',
-        tags: 'read-only',
-        menu: 'soundsMenu'
     },
     '%key': {
         type: 'input',
@@ -912,7 +902,7 @@ SyntaxElementMorph.prototype.labelParts = {
 
     /*
         type: 'slot'
-        kind: 'object', ''
+        kind: 'object', 'list', 'sound', 'costume'
     */
     '%obj': {
         type: 'slot',
@@ -11431,55 +11421,6 @@ InputSlotMorph.prototype.attributesMenu = function (searching) {
         }
         obj.allBlocks(true).forEach((def, i) =>
             dict['§_def' + i] = def.blockInstance(true) // include translations
-        );
-    }
-    return dict;
-};
-
-InputSlotMorph.prototype.costumesMenu = function (searching) {
-    if (searching) {return {}; }
-
-    var block = this.parentThatIsA(BlockMorph),
-        rcvr = block.scriptTarget(),
-        dict,
-        allNames = [];
-    if (rcvr instanceof SpriteMorph) {
-        dict = {Turtle : ['Turtle']};
-    } else { // stage
-        dict = {Empty : ['Empty']};
-    }
-    if (block.selector !== 'doSwitchToCostume') {
-        dict.current = ['current'];
-    }
-    rcvr.costumes.asArray().forEach(costume => {
-        if (!allNames.some(n => snapEquals(n, costume.name))) {
-            allNames.push(costume.name);
-        }
-    });
-    if (allNames.length > 0) {
-        dict['~'] = null;
-        allNames.forEach(name =>
-            dict[name] = name
-        );
-    }
-    return dict;
-};
-
-InputSlotMorph.prototype.soundsMenu = function (searching) {
-    if (searching) {return {}; }
-
-    var rcvr = this.parentThatIsA(BlockMorph).scriptTarget(),
-        allNames = [],
-        dict = {};
-
-    rcvr.sounds.asArray().forEach(sound => {
-        if (!allNames.some(n => snapEquals(n, sound.name))) {
-            allNames.push(sound.name);
-        }
-    });
-    if (allNames.length > 0) {
-        allNames.sort().forEach(name =>
-            dict[name] = name
         );
     }
     return dict;

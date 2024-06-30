@@ -1,0 +1,322 @@
+diff --git a/src/blocks.js b/src/blocks.js index a8cf83c..f5e4e8c 100644 --- a/src/blocks.js +++ 
+b/src/blocks.js @@ -586,11 +586,6 @@ SyntaxElementMorph.prototype.labelParts = {
+         tags: 'read-only static', menu: 'gettablesMenu'
+     },
+- '%cst': { - type: 'input', - tags: 'read-only', - menu: 'costumesMenu' - }, '%eff': { type: 
+         'input', tags: 'read-only static',
+@@ -620,11 +615,6 @@ SyntaxElementMorph.prototype.labelParts = { inputs : ['inputs']
+         }
+     },
+- '%snd': { - type: 'input', - tags: 'read-only', - menu: 'soundsMenu' - }, '%key': { type: 
+         'input', tags: 'read-only',
+@@ -912,7 +902,7 @@ SyntaxElementMorph.prototype.labelParts = {
+ 
+     /* type: 'slot' - kind: 'object', '' + kind: 'object', 'list', 'sound', 'costume' */ '%obj': { 
+         type: 'slot',
+@@ -11436,55 +11426,6 @@ InputSlotMorph.prototype.attributesMenu = function (searching) { return 
+     dict;
+ };
+ 
+-InputSlotMorph.prototype.costumesMenu = function (searching) { - if (searching) {return {}; } - - 
+var block = this.parentThatIsA(BlockMorph), - rcvr = block.scriptTarget(), - dict, - allNames = []; 
+- if (rcvr instanceof SpriteMorph) { - dict = {Turtle : ['Turtle']}; - } else { // stage - dict = 
+{Empty : ['Empty']}; - } - if (block.selector !== 'doSwitchToCostume') { - dict.current = 
+['current']; - } - rcvr.costumes.asArray().forEach(costume => { - if (!allNames.some(n => 
+snapEquals(n, costume.name))) { - allNames.push(costume.name); - } - }); - if (allNames.length > 0) 
+{ - dict['~'] = null; - allNames.forEach(name => - dict[name] = name - ); - } - return dict; -}; - 
+-InputSlotMorph.prototype.soundsMenu = function (searching) { - if (searching) {return {}; } - - 
+var rcvr = this.parentThatIsA(BlockMorph).scriptTarget(), - allNames = [], - dict = {}; - - 
+rcvr.sounds.asArray().forEach(sound => { - if (!allNames.some(n => snapEquals(n, sound.name))) { - 
+allNames.push(sound.name); - } - }); - if (allNames.length > 0) { - allNames.sort().forEach(name => 
+- dict[name] = name - ); - } - return dict; -}; -
+ InputSlotMorph.prototype.shadowedVariablesMenu = function (searching) { if (searching) {return {}; 
+     }
+ 
+diff --git a/src/objects.js b/src/objects.js index e622a57..3a6bf9b 100644 --- a/src/objects.js +++ 
+b/src/objects.js @@ -205,8 +205,8 @@ SpriteMorph.prototype.initBlocks = function () {
+         reportGetImageAttribute: { type: 'reporter', category: 'looks', - spec: '%img of costume 
+%cst',
+- defaults: [['width'], ['current']] + spec: '%img of costume %obj', + defaults: [['width']]
+         },
+         reportNewCostume: { type: 'reporter', @@ -216,8 +216,8 @@ SpriteMorph.prototype.initBlocks 
+= function () {
+         reportNewCostumeStretched: { type: 'reporter', category: 'looks', - spec: 'stretch %cst x: 
+%n y: %n %',
+- defaults: [['current'], 100, 50] + spec: 'stretch %obj x: %n y: %n %', + defaults: [null, 100, 
+50]
+         },
+ 
+         // Looks - Debugging primitives for development mode
+@@ -250,18 +250,18 @@ SpriteMorph.prototype.initBlocks = function () { playSound: { type: 
+             'command', category: 'sound',
+- spec: 'play sound %snd' + spec: 'play sound %obj'
+         },
+         doPlaySoundUntilDone: { type: 'command', category: 'sound', - spec: 'play sound %snd until 
+done' + spec: 'play sound %obj until done'
+         },
+         doPlaySoundAtRate: { type: 'command', category: 'sound', - spec: 'play sound %snd at %rate 
+Hz', - defaults: ['', 44100] + spec: 'play sound %obj at %rate Hz', + defaults: [null, 44100]
+         },
+         doStopAllSounds: { type: 'command', @@ -271,7 +271,7 @@ SpriteMorph.prototype.initBlocks = 
+function () {
+         reportGetSoundAttribute: { type: 'reporter', category: 'sound', - spec: '%aa of sound 
+%snd',
++ spec: '%aa of sound %obj', defaults: [['duration']]
+         },
+         reportNewSoundFromSamples: { @@ -3054,173 +3054,8 @@ SpriteMorph.prototype.visibleScopeFor 
+= function (varName, isGlobal) {
+     return elements.flat();
+ };
+ 
+-// SpriteMorph costume management - -SpriteMorph.prototype.addCostume = function (costume) { - if 
+(!costume.name) { - costume.name = this.newCostumeName(localize('costume')); - } - 
+this.shadowAttribute('costumes'); - this.costumes.add(costume); - this.recordUserEdit( - 'costume', 
+- 'add', - costume.name - ); -}; - -SpriteMorph.prototype.wearCostume = function (costume, 
+noShadow) { - var x = this.xPosition ? this.xPosition() : null, - y = this.yPosition ? 
+this.yPosition() : null, - idx = isNil(costume) ? null : this.costumes.asArray().indexOf(costume); 
+- - this.changed(); - this.costume = costume; - this.fixLayout(); - this.rerender(); - if (x !== 
+null) { - this.silentGotoXY(x, y, true); // just me - } - if (this.positionTalkBubble) { // the 
+stage doesn't talk - this.positionTalkBubble(); - } - this.version = Date.now(); - - // propagate 
+to children that inherit my costume # - if (!noShadow) { - this.shadowAttribute('costume #'); - } - 
+this.specimens().forEach(instance => { - if (instance.cachedPropagation) { - if 
+(instance.inheritsAttribute('costume #')) { - if (idx === null) { - instance.wearCostume(null, 
+true); - } else if (idx === -1) { - instance.wearCostume(costume, true); - } else { - 
+instance.doSwitchToCostume(idx + 1, true); - } - } - } - }); -}; - 
+-SpriteMorph.prototype.getCostumeIdx = function () { - if (this.inheritsAttribute('costume #')) { - 
+return this.exemplar.getCostumeIdx(); - } - return this.costumes.asArray().indexOf(this.costume) + 
+1; -}; - -SpriteMorph.prototype.doWearNextCostume = function () { - var arr = 
+this.costumes.asArray(), - idx; - if (arr.length > 1) { - idx = arr.indexOf(this.costume); - if 
+(idx > -1) { - idx += 1; - if (idx > (arr.length - 1)) { - idx = 0; - } - 
+this.wearCostume(arr[idx]); - } - } -}; - -SpriteMorph.prototype.doWearPreviousCostume = function 
+() { - var arr = this.costumes.asArray(), - idx; - if (arr.length > 1) { - idx = 
+arr.indexOf(this.costume); - if (idx > -1) { - idx -= 1; - if (idx < 0) { - idx = arr.length - 1; - 
+}
+- this.wearCostume(arr[idx]); - } - } -}; - -SpriteMorph.prototype.doSwitchToCostume = function 
+(id, noShadow) { - var w = 0, - h = 0, - stage; - if (id instanceof List) { // try to turn a list 
+of pixels into a costume - if (id.quickShape().at(2) <= 4) { - if (this.costume) { - // recycle 
+dimensions of current costume - w = this.costume.width(); - h = this.costume.height(); - } - if (w 
+* h !== id.length()) { - // assume stage's dimensions - stage = this.parentThatIsA(StageMorph); - w 
+= stage.dimensions.x; - h = stage.dimensions.y; - } - } // else try to interpret the pixels as 
+matrix - id = Process.prototype.reportNewCostume( - id, - w, - h, - 
+this.newCostumeName(localize('snap')) - ); - } - if (id instanceof Costume) { // allow first-class 
+costumes - this.wearCostume(id, noShadow); - return; - } - if (id instanceof Array && (id[0] === 
+'current')) { - return; - } - - var num, - arr = this.costumes.asArray(), - costume; - if ( - 
+contains( - [localize('Turtle'), localize('Empty')], - (id instanceof Array ? id[0] : null) - ) - ) 
+{ - costume = null; - } else { - if (id === -1) { - this.doWearPreviousCostume(); - return; - } - 
+costume = detect(arr, cst => snapEquals(cst.name, id)); - if (costume === null) { - num = 
+parseFloat(id); - if (num === 0) { - costume = null; - } else { - costume = arr[num - 1] || null; - 
+}
+- } - } - this.wearCostume(costume, noShadow); -}; - -SpriteMorph.prototype.reportCostumes = 
+function () { - return this.costumes; -}; -
+ // SpriteMorph sound management
+ 
+-SpriteMorph.prototype.addSound = function (audio, name) { - var sound = new Sound(audio, 
+this.newSoundName(name)); - this.shadowAttribute('sounds'); - this.sounds.add(sound); - 
+this.recordUserEdit( - 'sounds', - 'add', - sound.name - ); - return sound; -}; -
+ SpriteMorph.prototype.doPlaySound = function (name) { var stage = this.parentThatIsA(StageMorph), 
+         sound = name instanceof Sound ? name
+@@ -3268,10 +3103,6 @@ SpriteMorph.prototype.doPlaySound = function (name) {
+     }
+ };
+ 
+-SpriteMorph.prototype.reportSounds = function () { - return this.sounds; -}; -
+ // SpriteMorph volume
+ 
+ SpriteMorph.prototype.setVolume = function (num, noShadow) { @@ -6485,7 +6316,8 @@ 
+StageMorph.prototype.blockTemplates = function (
+     category = 'lists', all = false // include hidden blocks ) { - var blocks = [], myself = this, 
+varNames, txt; + var blocks = [], myself = this, varNames, txt, + isDevMode = this.world() && 
+this.world().isDevMode;
+ 
+     function block(selector) { if (myself.hiddenPrimitives[selector] && !all) { @@ -6557,7 +6389,7 
+@@ StageMorph.prototype.blockTemplates = function (
+         blocks.push(block('log'));
+ 
+         // for debugging: ///////////////
+- if (this.world().isDevMode) { + if (isDevMode) { blocks.push('-'); 
+             blocks.push(this.devModeText()); blocks.push('-');
+@@ -6598,7 +6430,7 @@ StageMorph.prototype.blockTemplates = function ( 
+         blocks.push(block('stopFreq'));
+ 
+         // for debugging: ///////////////
+- if (this.world().isDevMode) { + if (isDevMode) { blocks.push('-'); 
+             blocks.push(this.devModeText()); blocks.push('-');
+@@ -6650,7 +6482,7 @@ StageMorph.prototype.blockTemplates = function ( 
+         blocks.push(block('reportEnvironment'));
+ 
+         // for debugging: ///////////////
+- if (this.world().isDevMode) { + if (isDevMode) { blocks.push('-'); 
+             blocks.push(this.devModeText()); blocks.push('-');
+@@ -6696,7 +6528,7 @@ StageMorph.prototype.blockTemplates = function ( 
+         blocks.push(block('doSetGlobalFlag'));
+ 
+         // for debugging: ///////////////
+- if (this.world().isDevMode) { + if (isDevMode) { blocks.push('-'); 
+             blocks.push(this.devModeText()); blocks.push('-');
+@@ -6756,7 +6588,7 @@ StageMorph.prototype.blockTemplates = function (
+         }
+ 
+         // for debugging: ///////////////
+- if (this.world().isDevMode) { + if (isDevMode) { blocks.push('-'); 
+             blocks.push(this.devModeText()); blocks.push('-');
+@@ -6836,7 +6668,7 @@ StageMorph.prototype.blockTemplates = function (
+         }
+ 
+         // for debugging: ///////////////
+- if (this.world().isDevMode) { + if (isDevMode) { blocks.push('-'); 
+             blocks.push(this.devModeText()); blocks.push('-');
+diff --git a/src/store.js b/src/store.js index 78a587c..e4b1ea1 100644 --- a/src/store.js +++ 
+b/src/store.js @@ -1797,29 +1797,16 @@ Array.prototype.toXML = function (serializer) {
+ // Scenes & multi-scene projects
+ 
+ Project.prototype.toXML = function (serializer) { - var thumbdata; - - // thumb data catch 
+cross-origin tainting exception when using SVG costumes - try { - thumbdata = 
+this.thumbnail.toDataURL('image/png'); - } catch (error) { - thumbdata = null; - } -
+     return serializer.format( '<project name="@" app="@" version="@">' + '<notes>$</notes>' + - 
+'<thumbnail>$</thumbnail>' + - '<scenes select="@">%</scenes>' + + '%' +
+             '</project>', this.name || localize('Untitled'), serializer.app, serializer.version, 
+         this.notes || '',
+- thumbdata, - this.scenes.asArray().indexOf( - this.currentScene) + 1, - 
+serializer.store(this.scenes.itemsArray()) + serializer.store(this.currentScene)
+     );
+ };
+ 
+@@ -1845,7 +1832,7 @@ Scene.prototype.toXML = function (serializer) { serializer.scene = this; // 
+     keep the order of sprites in the corral
+ 
+     xml = serializer.format( - '<scene name="@"%%%%%%>' + + '<scene %%%%%>' + '<notes>$</notes>' + 
+             '%' + '<hidden>$</hidden>' +
+@@ -1855,7 +1842,6 @@ Scene.prototype.toXML = function (serializer) { '%' + // stage 
+             '<variables>%</variables>' + '</scene>',
+- this.name || localize('Untitled'), this.unifiedPalette ? ' palette="single"' : '', 
+         this.unifiedPalette && !this.showCategories ?
+             ' categories="false"' : '', @@ -1863,7 +1849,6 @@ Scene.prototype.toXML = function 
+(serializer) {
+             ' buttons="false"' : '', this.disableClickToRun ? ' clickrun="false"' : '', 
+         this.disableDraggingData ? ' dragdata="false"' : '',
+- this.penColorModel === 'hsl' ? ' colormodel="hsl"' : '', this.notes || '', 
+         serializer.paletteToXML(this.customCategories), Object.keys(this.hiddenPrimitives).reduce(
+@@ -1882,106 +1867,38 @@ Scene.prototype.toXML = function (serializer) {
+ // Sprites
+ 
+ StageMorph.prototype.toXML = function (serializer) { - var costumeIdx = this.getCostumeIdx(); - - 
+this.removeAllClones();
+     return serializer.format( - '<stage name="@" width="@" height="@" ' + - 'costume="@" 
+color="@,@,@,@" tempo="@" threadsafe="@" ' + - 'penlog="@" ' + - '%' + - 'volume="@" ' + - 'pan="@" 
+' + - 'lines="@" ' + + '<stage ' + + 'threadsafe="@" ' +
+             'ternary="@" ' + 'hyperops="@" ' + 'codify="@" ' + - 'inheritance="@" ' + 
+             'sublistIDs="@" ~>' +
+- '<pentrails>$</pentrails>' + - '%' + // current costume, if it's not in the wardrobe - 
+'<costumes>%</costumes>' + - '<sounds>%</sounds>' +
+             '<variables>%</variables>' + '<blocks>%</blocks>' + '<scripts>%</scripts>' + - 
+'<sprites select="@">%</sprites>' +
+             '</stage>', - this.name, - this.dimensions.x, - this.dimensions.y, - costumeIdx, - 
+this.color.r, - this.color.g, - this.color.b, - this.color.a, - this.getTempo(),
+         this.isThreadSafe, - this.enablePenLogging, - this.instrument ? - ' instrument="' + 
+parseInt(this.instrument) + '" ' : '', - this.volume, - this.pan, - 
+SpriteMorph.prototype.useFlatLineEnds ? 'flat' : 'round',
+         BooleanSlotMorph.prototype.isTernary, Process.prototype.enableHyperOps === true, 
+         this.enableCodeMapping,
+- this.enableInheritance, this.enableSublistIDs, - normalizeCanvas(this.trailsCanvas, 
+true).toDataURL('image/png'), - - // current costume, if it's not in the wardrobe - !costumeIdx && 
+this.costume ? - '<wear>' + serializer.store(this.costume) + '</wear>' - : '',
+ 
+- serializer.store(this.costumes, this.name + '_cst'), - serializer.store(this.sounds, this.name + 
+'_snd'),
+         serializer.store(this.variables), serializer.store(this.customBlocks), 
+         serializer.store(this.scripts),
+- serializer.root.sprites.asArray().indexOf( - serializer.root.currentSprite) + 1, - 
+serializer.store(this.children)
+     );
+ };
+ 
+ StageMorph.prototype.toSpriteXML = function (serializer) {
+     // special case: export the stage as a sprite, so it can be imported into another project or 
+     // scene
+- var costumeIdx = this.getCostumeIdx(); - return serializer.format( - '<sprite name="@" idx="1" 
+x="0" y="0"' + - ' heading="90"' + - ' scale="1"' + - ' volume="@"' + - ' pan="@"' + - ' 
+rotation="0"' + - '%' + - ' draggable="true"' + - ' costume="@" color="80,80,80,1" pen="tip" ~>' + 
+- '%' + // current costume - '<costumes>%</costumes>' + - '<sounds>%</sounds>' + + '<sprite ' +
+             '<blocks>%</blocks>' + '<variables>%</variables>' + '<scripts>%</scripts>' + 
+             '</sprite>',
+- this.name, - this.volume, - this.pan, - this.instrument ? - ' instrument="' + 
+parseInt(this.instrument) + '" ' : '', - costumeIdx, - - // current costume, if it's not in the 
+wardrobe - !costumeIdx && this.costume ? - '<wear>' + serializer.store(this.costume) + '</wear>' - 
+: '',
+- - serializer.store(this.costumes, this.name + '_cst'), - serializer.store(this.sounds, this.name 
++ '_snd'),
+         !this.customBlocks ? '' : serializer.store(this.customBlocks),
+         serializer.store(this.variables), serializer.store(this.scripts) @@ -1989,94 +1906,22 @@ 
+StageMorph.prototype.toSpriteXML = function (serializer) {
+ };
+ 
+ SpriteMorph.prototype.toXML = function (serializer) { - var idx = 
+serializer.scene.sprites.asArray().indexOf(this) + 1, - costumeIdx = this.getCostumeIdx(), - 
+noCostumes = this.inheritsAttribute('costumes'), - noSounds = this.inheritsAttribute('sounds'), - 
+noScripts = this.inheritsAttribute('scripts'); + var noScripts = this.inheritsAttribute('scripts');
+ 
+     return serializer.format( - '<sprite name="@" idx="@" x="@" y="@"' + - ' heading="@"' + - ' 
+scale="@"' + - ' volume="@"' + - ' pan="@"' + - ' rotation="@"' + - '%' + - ' draggable="@"' + - 
+'%' + - ' costume="@" color="@,@,@,@" pen="@" ~>' + + '<sprite ' +
+             '%' + // solution info - '%' + // inheritance info - '%' + // nesting info - '%' + // 
+current costume - (noCostumes ? '%' : '<costumes>%</costumes>') + - (noSounds ? '%' : 
+'<sounds>%</sounds>') +
+             '<blocks>%</blocks>' + '<variables>%</variables>' + - (this.exemplar ? 
+'<dispatches>%</dispatches>' : '%') +
+             (noScripts ? '%' : '<scripts>%</scripts>') + '</sprite>', - this.name, - idx, - 
+this.xPosition(), - this.yPosition(), - this.heading, - this.scale, - this.volume, - this.pan, - 
+this.rotationStyle, - this.instrument ? - ' instrument="' + parseInt(this.instrument) + '" ' : '', 
+- this.isDraggable, - this.isVisible ? '' : ' hidden="true"', - costumeIdx, - this.color.r, - 
+this.color.g, - this.color.b, - this.color.a, - this.penPoint, -
+         // solution info
+         this.solution ? '<solution>' + serializer.store(this.solution) + '</solution>'
+             : '',
+ 
+- // inheritance info - this.exemplar - ? '<inherit exemplar="' + - this.exemplar.name + - '">' + - 
+(this.inheritedAttributes.length ? - serializer.store(new List(this.inheritedAttributes)) - : '') + 
+- '</inherit>' - : '', - - // nesting info - this.anchor - ? '<nest anchor="' + - this.anchor.name 
++ - '" synch="' - + this.rotatesWithAnchor - + (this.scale === this.nestingScale ? '' : - '"' - + ' 
+scale="' - + this.nestingScale) - - + '"/>' - : '', - - // current costume, if it's not in the 
+wardrobe - !costumeIdx && this.costume ? - '<wear>' + serializer.store(this.costume) + '</wear>' - 
+: '',
+- - noCostumes ? '' : serializer.store(this.costumes, this.name + '_cst'), - noSounds ? '' : 
+serializer.store(this.sounds, this.name + '_snd'),
+         !this.customBlocks ? '' : serializer.store(this.customBlocks),
+         serializer.store(this.variables), - this.exemplar ? 
+serializer.store(this.inheritedMethods()) : '',
+         noScripts ? '' : serializer.store(this.scripts) );
+ };
+@@ -2085,10 +1930,7 @@ Costume.prototype[XML_Serializer.prototype.mediaDetectionProperty] = true;
+ 
+ Costume.prototype.toXML = function (serializer) { return serializer.format( - '<costume name="@" 
+center-x="@" center-y="@" image="@"% ~/>', - this.name, - this.rotationCenter.x, - 
+this.rotationCenter.y, + '<costume image="@"% ~/>',
+         this instanceof SVG_Costume ? this.contents.src
+                 : normalizeCanvas(this.contents).toDataURL('image/png'),
+         this.embeddedData ? serializer.format(' embed="@"', this.embeddedData) @@ -2100,8 +1942,7 
+@@ Sound.prototype[XML_Serializer.prototype.mediaDetectionProperty] = true;
+ 
+ Sound.prototype.toXML = function (serializer) { return serializer.format( - '<sound name="@" 
+sound="@" ~/>', - this.name, + '<sound sound="@" ~/>',
+         this.toDataURL() );
+ };
+@@ -2142,50 +1983,6 @@ VariableFrame.prototype.toXML = function (serializer) {
+     }, '');
+ };
+ 
+-// Watchers - -WatcherMorph.prototype.toXML = function (serializer) { - var isVar = this.target 
+instanceof VariableFrame, - isList = this.currentValue instanceof List, - color = 
+this.readoutColor, - position = this.parent ? - this.topLeft().subtract( - this.parent.topLeft() - 
+).divideBy(this.parent.scale) - : this.topLeft(); - - if (this.isTemporary()) { - // do not save 
+watchers on temporary variables - return ''; - } - return serializer.format( - '<watcher% % 
+style="@"% x="@" y="@" color="@,@,@"%%/>', - (isVar && this.target.owner) || (!isVar && 
+this.target) ? - serializer.format(' scope="@"', - isVar ? this.target.owner.name : 
+this.target.name) - : '', - serializer.format(isVar ? 'var="@"' : 's="@"', this.getter), - 
+this.style, - isVar && this.style === 'slider' ? serializer.format( - ' min="@" max="@"', - 
+this.sliderMorph.start, - this.sliderMorph.stop - ) : '', - position.x, - position.y, - color.r, - 
+color.g, - color.b, - !isList ? '' - : serializer.format( - ' extX="@" extY="@"', - 
+this.cellMorph.contentsMorph.width(), - this.cellMorph.contentsMorph.height() - ), - this.isVisible 
+? '' : ' hidden="true"' - ); -}; -
+ // Scripts
+ 
+ ScriptsMorph.prototype.toXML = function (serializer) {

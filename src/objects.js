@@ -205,8 +205,8 @@ SpriteMorph.prototype.initBlocks = function () {
         reportGetImageAttribute: {
             type: 'reporter',
             category: 'looks',
-            spec: '%img of costume %cst',
-            defaults: [['width'], ['current']]
+            spec: '%img of costume %obj',
+            defaults: [['width']]
         },
         reportNewCostume: {
             type: 'reporter',
@@ -216,8 +216,8 @@ SpriteMorph.prototype.initBlocks = function () {
         reportNewCostumeStretched: {
             type: 'reporter',
             category: 'looks',
-            spec: 'stretch %cst x: %n y: %n %',
-            defaults: [['current'], 100, 50]
+            spec: 'stretch %obj x: %n y: %n %',
+            defaults: [null, 100, 50]
         },
 
         // Looks - Debugging primitives for development mode
@@ -250,18 +250,18 @@ SpriteMorph.prototype.initBlocks = function () {
         playSound: {
             type: 'command',
             category: 'sound',
-            spec: 'play sound %snd'
+            spec: 'play sound %obj'
         },
         doPlaySoundUntilDone: {
             type: 'command',
             category: 'sound',
-            spec: 'play sound %snd until done'
+            spec: 'play sound %obj until done'
         },
         doPlaySoundAtRate: {
             type: 'command',
             category: 'sound',
-            spec: 'play sound %snd at %rate Hz',
-            defaults: ['', 44100]
+            spec: 'play sound %obj at %rate Hz',
+            defaults: [null, 44100]
         },
         doStopAllSounds: {
             type: 'command',
@@ -271,7 +271,7 @@ SpriteMorph.prototype.initBlocks = function () {
         reportGetSoundAttribute: {
             type: 'reporter',
             category: 'sound',
-            spec: '%aa of sound %snd',
+            spec: '%aa of sound %obj',
             defaults: [['duration']]
         },
         reportNewSoundFromSamples: {
@@ -3054,172 +3054,7 @@ SpriteMorph.prototype.visibleScopeFor = function (varName, isGlobal) {
     return elements.flat();
 };
 
-// SpriteMorph costume management
-
-SpriteMorph.prototype.addCostume = function (costume) {
-    if (!costume.name) {
-        costume.name = this.newCostumeName(localize('costume'));
-    }
-    this.shadowAttribute('costumes');
-    this.costumes.add(costume);
-    this.recordUserEdit(
-        'costume',
-        'add',
-        costume.name
-    );
-};
-
-SpriteMorph.prototype.wearCostume = function (costume, noShadow) {
-    var x = this.xPosition ? this.xPosition() : null,
-        y = this.yPosition ? this.yPosition() : null,
-        idx = isNil(costume) ? null : this.costumes.asArray().indexOf(costume);
-
-    this.changed();
-    this.costume = costume;
-    this.fixLayout();
-    this.rerender();
-    if (x !== null) {
-        this.silentGotoXY(x, y, true); // just me
-    }
-    if (this.positionTalkBubble) { // the stage doesn't talk
-        this.positionTalkBubble();
-    }
-    this.version = Date.now();
-
-    // propagate to children that inherit my costume #
-    if (!noShadow) {
-        this.shadowAttribute('costume #');
-    }
-    this.specimens().forEach(instance => {
-        if (instance.cachedPropagation) {
-            if (instance.inheritsAttribute('costume #')) {
-                if (idx === null) {
-                    instance.wearCostume(null, true);
-                } else if (idx === -1) {
-                    instance.wearCostume(costume, true);
-                } else {
-                    instance.doSwitchToCostume(idx + 1, true);
-                }
-            }
-        }
-    });
-};
-
-SpriteMorph.prototype.getCostumeIdx = function () {
-    if (this.inheritsAttribute('costume #')) {
-        return this.exemplar.getCostumeIdx();
-    }
-    return this.costumes.asArray().indexOf(this.costume) + 1;
-};
-
-SpriteMorph.prototype.doWearNextCostume = function () {
-    var arr = this.costumes.asArray(),
-        idx;
-    if (arr.length > 1) {
-        idx = arr.indexOf(this.costume);
-        if (idx > -1) {
-            idx += 1;
-            if (idx > (arr.length - 1)) {
-                idx = 0;
-            }
-            this.wearCostume(arr[idx]);
-        }
-    }
-};
-
-SpriteMorph.prototype.doWearPreviousCostume = function () {
-    var arr = this.costumes.asArray(),
-        idx;
-    if (arr.length > 1) {
-        idx = arr.indexOf(this.costume);
-        if (idx > -1) {
-            idx -= 1;
-            if (idx < 0) {
-                idx = arr.length - 1;
-            }
-            this.wearCostume(arr[idx]);
-        }
-    }
-};
-
-SpriteMorph.prototype.doSwitchToCostume = function (id, noShadow) {
-    var w = 0,
-        h = 0,
-        stage;
-    if (id instanceof List) { // try to turn a list of pixels into a costume
-        if (id.quickShape().at(2) <= 4) {
-            if (this.costume) {
-                // recycle dimensions of current costume
-                w = this.costume.width();
-                h = this.costume.height();
-            }
-            if (w * h !== id.length()) {
-                // assume stage's dimensions
-                stage = this.parentThatIsA(StageMorph);
-                w = stage.dimensions.x;
-                h = stage.dimensions.y;
-            }
-        } // else try to interpret the pixels as matrix
-        id = Process.prototype.reportNewCostume(
-            id,
-            w,
-            h,
-            this.newCostumeName(localize('snap'))
-        );
-    }
-    if (id instanceof Costume) { // allow first-class costumes
-        this.wearCostume(id, noShadow);
-        return;
-    }
-    if (id instanceof Array && (id[0] === 'current')) {
-        return;
-    }
-
-    var num,
-        arr = this.costumes.asArray(),
-        costume;
-    if (
-        contains(
-            [localize('Turtle'), localize('Empty')],
-            (id instanceof Array ? id[0] : null)
-        )
-    ) {
-        costume = null;
-    } else {
-        if (id === -1) {
-            this.doWearPreviousCostume();
-            return;
-        }
-        costume = detect(arr, cst => snapEquals(cst.name, id));
-        if (costume === null) {
-            num = parseFloat(id);
-            if (num === 0) {
-                costume = null;
-            } else {
-                costume = arr[num - 1] || null;
-            }
-        }
-    }
-    this.wearCostume(costume, noShadow);
-};
-
-SpriteMorph.prototype.reportCostumes = function () {
-    return this.costumes;
-};
-
 // SpriteMorph sound management
-
-SpriteMorph.prototype.addSound = function (audio, name) {
-    var sound = new Sound(audio, this.newSoundName(name));
-    this.shadowAttribute('sounds');
-    this.sounds.add(sound);
-    this.recordUserEdit(
-        'sounds',
-        'add',
-        sound.name
-    );
-    return sound;
-};
 
 SpriteMorph.prototype.doPlaySound = function (name) {
     var stage = this.parentThatIsA(StageMorph),
@@ -3266,10 +3101,6 @@ SpriteMorph.prototype.doPlaySound = function (name) {
         }
         return aud;
     }
-};
-
-SpriteMorph.prototype.reportSounds = function () {
-    return this.sounds;
 };
 
 // SpriteMorph volume
@@ -6485,7 +6316,8 @@ StageMorph.prototype.blockTemplates = function (
     category = 'lists',
     all = false // include hidden blocks
 ) {
-    var blocks = [], myself = this, varNames, txt;
+    var blocks = [], myself = this, varNames, txt,
+        isDevMode = this.world() && this.world().isDevMode;
 
     function block(selector) {
         if (myself.hiddenPrimitives[selector] && !all) {
@@ -6557,7 +6389,7 @@ StageMorph.prototype.blockTemplates = function (
         blocks.push(block('log'));
 
         // for debugging: ///////////////
-        if (this.world().isDevMode) {
+        if (isDevMode) {
             blocks.push('-');
             blocks.push(this.devModeText());
             blocks.push('-');
@@ -6598,7 +6430,7 @@ StageMorph.prototype.blockTemplates = function (
         blocks.push(block('stopFreq'));
 
         // for debugging: ///////////////
-        if (this.world().isDevMode) {
+        if (isDevMode) {
             blocks.push('-');
             blocks.push(this.devModeText());
             blocks.push('-');
@@ -6650,7 +6482,7 @@ StageMorph.prototype.blockTemplates = function (
         blocks.push(block('reportEnvironment'));
 
         // for debugging: ///////////////
-        if (this.world().isDevMode) {
+        if (isDevMode) {
             blocks.push('-');
             blocks.push(this.devModeText());
             blocks.push('-');
@@ -6696,7 +6528,7 @@ StageMorph.prototype.blockTemplates = function (
         blocks.push(block('doSetGlobalFlag'));
 
         // for debugging: ///////////////
-        if (this.world().isDevMode) {
+        if (isDevMode) {
             blocks.push('-');
             blocks.push(this.devModeText());
             blocks.push('-');
@@ -6756,7 +6588,7 @@ StageMorph.prototype.blockTemplates = function (
         }
 
         // for debugging: ///////////////
-        if (this.world().isDevMode) {
+        if (isDevMode) {
             blocks.push('-');
             blocks.push(this.devModeText());
             blocks.push('-');
@@ -6836,7 +6668,7 @@ StageMorph.prototype.blockTemplates = function (
         }
 
         // for debugging: ///////////////
-        if (this.world().isDevMode) {
+        if (isDevMode) {
             blocks.push('-');
             blocks.push(this.devModeText());
             blocks.push('-');
