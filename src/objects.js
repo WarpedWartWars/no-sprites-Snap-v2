@@ -6651,6 +6651,12 @@ StageMorph.prototype.blockTemplates = function (
         blocks.push(block('reportReshape'));
         blocks.push(block('reportSlice'));
         blocks.push(block('reportCrossproduct'));
+
+        // for debugging: ///////////////
+        if (isDevMode) {
+            blocks.push('-');
+            blocks.push(block('doShowTable'));
+        }
     } else if (category === 'other') {
         if (SpriteMorph.prototype.showingExtensions) {
             blocks.push('=');
@@ -6671,8 +6677,6 @@ StageMorph.prototype.blockTemplates = function (
         if (isDevMode) {
             blocks.push('-');
             blocks.push(this.devModeText());
-            blocks.push('-');
-            blocks.push(block('doShowTable'));
         }
     }
 
