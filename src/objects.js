@@ -1041,12 +1041,12 @@ SpriteMorph.prototype.initBlocks = function () {
             spec: '%mlfunc %lists',
             defaults: [['append']]
         },
-        reportConcatenatedLists: {
+        reportConcatenatedLists: { // deprecated
             type: 'reporter',
             category: 'lists',
             spec: 'append %lists'
         },
-        reportCrossproduct: {
+        reportCrossproduct: { // deprecated
             type: 'reporter',
             category: 'lists',
             spec: 'combinations %lists'
@@ -6650,7 +6650,6 @@ StageMorph.prototype.blockTemplates = function (
         blocks.push(block('reportListCombination'));
         blocks.push(block('reportReshape'));
         blocks.push(block('reportSlice'));
-        blocks.push(block('reportCrossproduct'));
 
         // for debugging: ///////////////
         if (isDevMode) {
